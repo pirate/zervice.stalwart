@@ -1,0 +1,108 @@
+name: "${COMPOSE_PROJECT_NAME:-stalwart-mail}"
+
+services:
+  stalwart:
+    image: ghcr.io/stalwartlabs/stalwart:v0.16.18@sha256:9ed1d343243b7aa72969e372a7240b7ddea07730781d4b68a0dc3d8d51c418bb
+    restart: unless-stopped
+    environment:
+      STALWART_PUBLIC_URL: "${STALWART_PUBLIC_URL:?Set STALWART_PUBLIC_URL in .env}"
+      STALWART_RECOVERY_MODE: "${STALWART_RECOVERY_MODE:-false}"
+      STALWART_RECOVERY_ADMIN: "${STALWART_RECOVERY_ADMIN:-}"
+    volumes:
+      - ./data/stalwart/config:/etc/stalwart
+      - ./data/stalwart/storage:/var/lib/stalwart
+      - ./data/stalwart/dkim:/dkim:ro
+      - ./data/certs/mail:/certs:ro
+    ports:
+      - "${MAIL_BIND_IP:?Set MAIL_BIND_IP in .env}:25:25"
+      - "${MAIL_BIND_IP}:110:110"
+      - "${MAIL_BIND_IP}:143:143"
+      - "${MAIL_BIND_IP}:465:465"
+      - "${MAIL_BIND_IP}:587:587"
+      - "${MAIL_BIND_IP}:993:993"
+      - "${MAIL_BIND_IP}:995:995"
+    networks: [mailstack]
+
+  bulwark:
+    image: ghcr.io/bulwarkmail/webmail:1.7.8@sha256:1ea45e292e7baf84eccdfe3d7ed96fe4487f2b95025a6ab569706915f6798979
+    restart: unless-stopped
+    env_file: ./.env
+    volumes:
+      - ./data/bulwark/admin:/app/data/admin
+      - ./data/bulwark/admin-state:/app/data/admin-state
+      - ./data/bulwark/settings:/app/data/settings
+    ports:
+      - "127.0.0.1:13000:3000"
+    networks: [mailstack]
+    depends_on: [stalwart]
+
+  rules-watcher:
+    image: ghcr.io/bulwarkmail/webmail:1.7.8@sha256:1ea45e292e7baf84eccdfe3d7ed96fe4487f2b95025a6ab569706915f6798979
+    restart: unless-stopped
+    entrypoint: ["node", "/watcher/watcher.js"]
+    user: "2000:2000"
+    read_only: true
+    environment:
+      JMAP_BASE_URL: http://stalwart:8080
+      RULES_BOT_USERNAME: "${RULES_BOT_USERNAME:?Set RULES_BOT_USERNAME in .env}"
+      RULES_TARGETS: "${RULES_TARGETS:?Set RULES_TARGETS in .env}"
+      RULES_ROUTES: "${RULES_ROUTES:?Set RULES_ROUTES in .env}"
+      RULES_COPY_FORWARDS: "${RULES_COPY_FORWARDS:?Set RULES_COPY_FORWARDS in .env}"
+      RULES_POLL_SECONDS: "10"
+      # Immediate mailbox deletion races IMAP COPY/MOVE and leaves Mail.app
+      # with stale operations against folders that no longer exist.
+      EMPTY_FOLDER_POLL_SECONDS: "3600"
+      RULES_BOT_PASSWORD_FILE: /run/secrets/bot_password
+      RULES_STATE_PATH: /data/state.json
+      RULES_HEALTH_PATH: /data/healthy
+    volumes:
+      - ./rules-watcher:/watcher:ro
+      - ./data/rules-watcher:/data
+      - ./secrets/rules-watcher/bot_password:/run/secrets/bot_password:ro
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=16m
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD", "node", "-e", "const fs=require('fs'); const age=Date.now()-fs.statSync('/data/healthy').mtimeMs; process.exit(age < 60000 ? 0 : 1)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    networks: [mailstack]
+    depends_on:
+      stalwart:
+        condition: service_healthy
+
+  nginx:
+    image: ghcr.io/nginxinc/nginx-unprivileged:stable-alpine@sha256:c715a16970095e90787b02edd68b6371e24c18b8cc905ab1cd17cb20f79816fe
+    restart: unless-stopped
+    environment:
+      MAIL_SERVER_NAMES: "${MAIL_SERVER_NAMES:?Set MAIL_SERVER_NAMES in .env}"
+      WEBMAIL_SERVER_NAME: "${WEBMAIL_SERVER_NAME:?Set WEBMAIL_SERVER_NAME in .env}"
+      NGINX_ENVSUBST_FILTER: "^(MAIL_SERVER_NAMES|WEBMAIL_SERVER_NAME)$"
+      NGINX_ENVSUBST_TEMPLATE_DIR: /etc/nginx/templates
+      NGINX_ENVSUBST_OUTPUT_DIR: /etc/nginx
+    volumes:
+      - ./data/nginx/templates/nginx.conf.template:/etc/nginx/templates/nginx.conf.template:ro
+      - ./data/nginx/acme-webroot:/var/www/acme:ro
+      - ./data/certs/mail:/etc/ssl/mail:ro
+    ports:
+      - "${MAIL_BIND_IP}:80:8080"
+      - "${MAIL_BIND_IP}:443:8443"
+    networks: [mailstack]
+    depends_on: [stalwart, bulwark]
+
+  certbot:
+    image: ghcr.io/mailu/nginx:2.0@sha256:1f4aa7762c0e4758cdb8c44a64b8f868a9ffea975089de38d29517390fd0d91b
+    profiles: [maintenance]
+    entrypoint: [certbot]
+    volumes:
+      - ./data/certbot/etc:/etc/letsencrypt
+      - ./data/nginx/acme-webroot:/var/www/acme
+    networks: [mailstack]
+
+networks:
+  mailstack:
+    internal: false
