@@ -1,0 +1,78 @@
+MailLabels/scripts/build-app.sh
+  s_1500b5feb2b99e::t_cc8edb5432d66b 9,19,21-22,24
+  s_1500b5feb2b99e::t_6fb13e1c9d59a5 6-8,10,13,16,20
+  s_1500b5feb2b99e::t_8d6cd5200e9d85 1-5,11-12,14-15,17-18,23
+MailLabels/Resources/Info.plist
+  s_1500b5feb2b99e::t_8d6cd5200e9d85 1-28
+MailLabels/Sources/MailLabels/AccountStore.swift
+  s_1500b5feb2b99e::t_5188d1fde68389 30-53
+  s_1500b5feb2b99e::t_704f25705af145 1-29,54-94
+rules-watcher/README.md
+  s_1500b5feb2b99e::t_a2494508df1df8 40-47
+MailLabels/Sources/MailLabels/SettingsView.swift
+  s_1500b5feb2b99e::t_704f25705af145 1-56,58-74
+  s_1500b5feb2b99e::t_5188d1fde68389 57
+MailLabels/README.md
+  s_1500b5feb2b99e::t_cc8edb5432d66b 40-41
+  s_1500b5feb2b99e::t_5188d1fde68389 45-47
+  s_1500b5feb2b99e::t_a0966405b2e247 1-39,42-44,48-50
+rules-watcher/watcher.test.js
+  s_1500b5feb2b99e::t_b32923ba79e335 19,124-163
+  s_1500b5feb2b99e::t_c6eb3523147c09 9,26,84,110-123
+  s_10bc94d001be49::t_cf10e93ffa585f 164
+.gitignore
+  s_1500b5feb2b99e::t_8d6cd5200e9d85 11-24
+MailLabels/Sources/MailLabels/KeychainStore.swift
+  s_1500b5feb2b99e::t_86ac63b37a3966 1-46
+MailLabels/Tests/MailLabelsTests/MailLabelsTests.swift
+  s_1500b5feb2b99e::t_a0966405b2e247 1-31
+MailLabels/Package.swift
+  s_1500b5feb2b99e::t_8d6cd5200e9d85 1-22
+MailLabels/Sources/MailLabels/LabelController.swift
+  s_1500b5feb2b99e::t_704f25705af145 1-53
+MailLabels/Sources/MailLabels/MailLabelsApp.swift
+  s_1500b5feb2b99e::t_704f25705af145 1-56
+rules-watcher/watcher.js
+  s_1500b5feb2b99e::t_918aeff22b38fb 806-808,833
+  s_1500b5feb2b99e::t_fdfb8d6ae8b20f 1094,1101
+  s_1500b5feb2b99e::t_c6eb3523147c09 256,296,314-318,505-508,547-565,568-607
+  s_1500b5feb2b99e::t_0ff38a4581a05e 634,643,809-813,815-822,825-832,834-837,843-847
+  s_1500b5feb2b99e::t_bf9bb9375c5383 15,95-96
+  s_1500b5feb2b99e::t_4a24ec12a904aa 802-805,841-842,848
+  s_1500b5feb2b99e::t_2a07deacdafdeb 758-770
+MailLabels/Sources/MailLabels/Models.swift
+  s_1500b5feb2b99e::t_86ac63b37a3966 1-21,29-83
+  s_1500b5feb2b99e::t_5188d1fde68389 22-28
+README.md
+  s_1500b5feb2b99e::t_446afaba9e5440 16-17
+MailLabels/Sources/MailLabels/MailSelectionReader.swift
+  s_1500b5feb2b99e::t_86ac63b37a3966 1-31,53-74,100-103
+  s_1500b5feb2b99e::t_5188d1fde68389 32-52,75-99
+MailLabels/Sources/MailLabels/JMAPClient.swift
+  s_1500b5feb2b99e::t_33cda0966fa2bb 1-164,166-243
+  s_1500b5feb2b99e::t_c7725a73c62fc1 165
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "952ecd577196835a11c6ba825803dbf739402e82",
+  "prompts": {},
+  "sessions": {
+    "s_10bc94d001be49": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a11f62-2c55-7051-a677-585a21b42fb4",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "pirate <511499+pirate@users.noreply.github.com>"
+    },
+    "s_1500b5feb2b99e": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0373b-a39e-7880-98cf-7ad8eeec6f73",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "pirate <511499+pirate@users.noreply.github.com>"
+    }
+  }
+}
