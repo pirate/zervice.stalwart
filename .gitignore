@@ -8,6 +8,20 @@
 !/docker-compose.yml
 !/send-mail-tester.py
 
+!/MailLabels/
+!/MailLabels/Package.swift
+!/MailLabels/README.md
+!/MailLabels/Resources/
+!/MailLabels/Resources/Info.plist
+!/MailLabels/Sources/
+!/MailLabels/Sources/MailLabels/
+!/MailLabels/Sources/MailLabels/*.swift
+!/MailLabels/Tests/
+!/MailLabels/Tests/MailLabelsTests/
+!/MailLabels/Tests/MailLabelsTests/*.swift
+!/MailLabels/scripts/
+!/MailLabels/scripts/build-app.sh
+
 !/rules-watcher/
 !/rules-watcher/README.md
 !/rules-watcher/admin.js

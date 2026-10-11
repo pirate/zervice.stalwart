@@ -6,7 +6,7 @@ const assert = require("node:assert/strict");
 process.env.RULES_BOT_USERNAME = "rules-bot@example.test";
 process.env.RULES_TARGETS = "owner@primary.test,owner@archive.test";
 process.env.RULES_ROUTES = JSON.stringify({
-  "owner@primary.test": ["primary.test", "alias.test", "admin.test", "service.test"],
+  "owner@primary.test": ["primary.test", "alias.test", "admin.test", "service.test", "exact@family.test"],
   "owner@archive.test": ["archive.test"],
 });
 process.env.RULES_COPY_FORWARDS = JSON.stringify({
@@ -16,12 +16,14 @@ process.env.RULES_COPY_FORWARDS = JSON.stringify({
 const {
   CONFIG,
   CONTROL_MODES,
+  destinationLabelWork,
   extractDestination,
   extractLabelDestinations,
   emptyLeafMailboxes,
   folderNameFor,
   JmapClient,
   mergeManagedBlock,
+  onlyInMailboxes,
   reconcileSelectors,
   renderManagedBlock,
   setPolicy,
@@ -79,7 +81,7 @@ test("destination labels include every local catch-all recipient", () => {
 
 test("primary account loads configured catch-all domains", () => {
   assert.deepEqual(CONFIG.routes["owner@primary.test"], [
-    "primary.test", "alias.test", "admin.test", "service.test",
+    "primary.test", "alias.test", "admin.test", "service.test", "exact@family.test",
   ]);
 });
 
@@ -103,6 +105,61 @@ test("destination labels accept a direct canonical Delivered-To fallback", () =>
   assert.deepEqual(extractLabelDestinations({
     "header:Delivered-To:asText": "admin@admin.test",
   }, ["admin.test"]), ["admin@admin.test"]);
+});
+
+test("exact routes do not include other addresses on the same domain", () => {
+  const email = {
+    "header:To:asAddresses": [
+      { email: "exact@family.test" },
+      { email: "other@family.test" },
+    ],
+  };
+  assert.deepEqual(extractLabelDestinations(email, ["exact@family.test"]), ["exact@family.test"]);
+});
+
+test("sent and draft-only messages are outgoing", () => {
+  const outgoing = new Set(["sent", "drafts"]);
+  assert.equal(onlyInMailboxes({ mailboxIds: { sent: true } }, outgoing), true);
+  assert.equal(onlyInMailboxes({ mailboxIds: { drafts: true, inbox: true } }, outgoing), false);
+});
+
+test("destination label v2 performs one full reconciliation", async () => {
+  const account = { destinationLabelVersion: 0, emailState: null };
+  const client = {
+    emailState: async () => "state-current",
+    allEmailIds: async () => ["one", "two"],
+  };
+  assert.deepEqual(await destinationLabelWork(account, client), {
+    ids: ["one", "two"], newState: "state-current", full: true,
+  });
+});
+
+test("destination label v2 follows Email changes after the full pass", async () => {
+  const account = { destinationLabelVersion: 2, emailState: "state-old" };
+  let sinceState;
+  const client = {
+    emailState: async () => "state-current",
+    emailChanges: async (value) => {
+      sinceState = value;
+      return { ids: ["changed"], newState: "state-new" };
+    },
+  };
+  assert.deepEqual(await destinationLabelWork(account, client), {
+    ids: ["changed"], newState: "state-new", full: false,
+  });
+  assert.equal(sinceState, "state-old");
+});
+
+test("destination label v2 falls back to full when change history expired", async () => {
+  const account = { destinationLabelVersion: 2, emailState: "state-too-old" };
+  const client = {
+    emailState: async () => "state-current",
+    emailChanges: async () => { throw new Error('Email/changes/error: {"type":"cannotCalculateChanges"}'); },
+    allEmailIds: async () => ["all"],
+  };
+  assert.deepEqual(await destinationLabelWork(account, client), {
+    ids: ["all"], newState: "state-current", full: true,
+  });
 });
 
 test("Ham is the control mailbox for the ham policy", () => {

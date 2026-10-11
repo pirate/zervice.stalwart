@@ -12,6 +12,7 @@ const CORE_CAP = "urn:ietf:params:jmap:core";
 const WATCHER_SCRIPT = "rules-watcher";
 const BEGIN_MARKER = "# BEGIN MAIL RULES WATCHER - MANAGED";
 const END_MARKER = "# END MAIL RULES WATCHER - MANAGED";
+const DESTINATION_LABEL_VERSION = 2;
 const CONTROL_MODES = Object.freeze({
   AutoUnread: "autoUnread",
   AutoRead: "autoRead",
@@ -91,6 +92,8 @@ function accountState(state, target) {
   for (const mode of Object.values(CONTROL_MODES)) result.policies[mode] ||= {};
   result.processed ||= {};
   result.labeled ||= {};
+  result.destinationLabelVersion ||= 0;
+  result.emailState ||= null;
   delete result.fallbackScript;
   return result;
 }
@@ -250,7 +253,7 @@ function parseReceivedFor(value) {
 
 function extractDestination(email, allowedDomains, canonicalTarget = null) {
   const allowed = new Set(allowedDomains.map((domain) => domain.toLowerCase()));
-  const valid = (address) => allowed.has(address.slice(address.lastIndexOf("@") + 1));
+  const valid = (address) => allowed.has(address) || allowed.has(address.slice(address.lastIndexOf("@") + 1));
   const preferredHeaders = [
     "header:X-Original-To:asText",
     "header:Envelope-To:asText",
@@ -290,7 +293,7 @@ function extractDestination(email, allowedDomains, canonicalTarget = null) {
 
 function extractLabelDestinations(email, allowedDomains) {
   const allowed = new Set(allowedDomains.map((domain) => domain.toLowerCase()));
-  const valid = (address) => allowed.has(address.slice(address.lastIndexOf("@") + 1));
+  const valid = (address) => allowed.has(address) || allowed.has(address.slice(address.lastIndexOf("@") + 1));
   const candidatesFrom = (value, parser = parseAddresses) => [
     ...new Set(parser(value).filter(valid)),
   ];
@@ -306,6 +309,11 @@ function extractLabelDestinations(email, allowedDomains) {
   ]);
   if (visible.length) return visible;
   return candidatesFrom(email["header:Delivered-To:asText"]);
+}
+
+function onlyInMailboxes(email, mailboxIds) {
+  const current = Object.keys(email.mailboxIds || {});
+  return current.length > 0 && current.every((id) => mailboxIds.has(id));
 }
 
 class JmapClient {
@@ -494,7 +502,10 @@ class JmapClient {
       }
       controls[control] = await this.createMailbox(control, rules);
     }
-    return { inbox: inbox.id, junk: junk.id, rules, autosorted, type, controls };
+    const outgoing = new Set(mailboxes
+      .filter((mailbox) => mailbox.role === "sent" || mailbox.role === "drafts")
+      .map((mailbox) => mailbox.id));
+    return { inbox: inbox.id, junk: junk.id, rules, autosorted, type, controls, outgoing };
   }
 
   async emailIdsInMailbox(mailboxId) {
@@ -533,19 +544,67 @@ class JmapClient {
     return ids;
   }
 
-  async emails(ids) {
-    if (!ids.length) return [];
+  async allEmailIds() {
+    const maximum = this.session.capabilities?.[CORE_CAP]?.maxObjectsInGet || 256;
+    const ids = [];
+    for (let position = 0; ; position += maximum) {
+      const responses = await this.request([["Email/query", {
+        accountId: this.accountId,
+        filter: {},
+        sort: [{ property: "receivedAt", isAscending: false }],
+        position,
+        limit: maximum,
+      }, "query"]]);
+      const page = this.result(responses, "Email/query", "query").ids || [];
+      ids.push(...page);
+      if (page.length < maximum) break;
+    }
+    return ids;
+  }
+
+  async emailState() {
     const responses = await this.request([["Email/get", {
       accountId: this.accountId,
-      ids,
-      properties: [
-        "id", "mailboxIds", "keywords", "subject", "receivedAt",
-        "header:Delivered-To:asText", "header:X-Original-To:asText",
-        "header:Envelope-To:asText", "header:Received:asText:all",
-        "header:To:asAddresses", "header:Cc:asAddresses",
-      ],
-    }, "get"]]);
-    return this.result(responses, "Email/get", "get").list || [];
+      ids: [],
+      properties: ["id"],
+    }, "state"]]);
+    return this.result(responses, "Email/get", "state").state;
+  }
+
+  async emailChanges(sinceState) {
+    const changed = new Set();
+    let state = sinceState;
+    for (;;) {
+      const responses = await this.request([["Email/changes", {
+        accountId: this.accountId,
+        sinceState: state,
+        maxChanges: 256,
+      }, "changes"]]);
+      const changes = this.result(responses, "Email/changes", "changes");
+      for (const id of [...(changes.created || []), ...(changes.updated || [])]) changed.add(id);
+      state = changes.newState;
+      if (!changes.hasMoreChanges) return { ids: [...changed], newState: state };
+    }
+  }
+
+  async emails(ids) {
+    if (!ids.length) return [];
+    const maximum = this.session.capabilities?.[CORE_CAP]?.maxObjectsInGet || 256;
+    const emails = [];
+    for (let offset = 0; offset < ids.length; offset += maximum) {
+      const responses = await this.request([["Email/get", {
+        accountId: this.accountId,
+        ids: ids.slice(offset, offset + maximum),
+        properties: [
+          "id", "mailboxIds", "keywords", "subject", "receivedAt",
+          "header:Delivered-To:asText", "header:X-Original-To:asText",
+          "header:Envelope-To:asText", "header:Received:asText:all",
+          "header:To:asAddresses", "header:Cc:asAddresses",
+        ],
+      }, "get"]]);
+      emails.push(...(this.result(responses, "Email/get", "get").list || []));
+    }
+    return emails;
   }
 
   async moveEmail(email, mode, mailboxId, preserveMailboxes = false) {
@@ -572,7 +631,7 @@ class JmapClient {
   }
 
   async addMailboxMembership(email, mailboxId) {
-    if (email.mailboxIds?.[mailboxId]) return;
+    if (email.mailboxIds?.[mailboxId]) return false;
     const mailboxIds = { ...(email.mailboxIds || {}), [mailboxId]: true };
     const responses = await this.request([["Email/set", {
       accountId: this.accountId,
@@ -581,6 +640,7 @@ class JmapClient {
     const result = this.result(responses, "Email/set", "set");
     if (result.notUpdated?.[email.id]) throw new Error(JSON.stringify(result.notUpdated[email.id]));
     email.mailboxIds = mailboxIds;
+    return true;
   }
 
   async scripts() {
@@ -695,6 +755,19 @@ function reconcileSelectors(account, presentSelectorIds) {
   return { changed: Boolean(reactivated.length || deactivated.length), removed, reactivated, deactivated };
 }
 
+async function destinationLabelWork(account, client) {
+  const currentState = await client.emailState();
+  if (account.destinationLabelVersion !== DESTINATION_LABEL_VERSION || !account.emailState) {
+    return { ids: await client.allEmailIds(), newState: currentState, full: true };
+  }
+  try {
+    return { ...(await client.emailChanges(account.emailState)), full: false };
+  } catch (error) {
+    if (!String(error.message).includes("cannotCalculateChanges")) throw error;
+    return { ids: await client.allEmailIds(), newState: currentState, full: true };
+  }
+}
+
 async function migrateSelectorFolders(account, client, folders, target) {
   if (account.selectorFoldersVersion === 1) return;
   for (const [mode, policies] of Object.entries(account.policies)) {
@@ -726,29 +799,53 @@ async function processAccount(state, target, password) {
   await client.ensureSieve(account);
   await migrateSelectorFolders(account, client, folders, target);
 
-  // Every new message gets an Autosorted/<destination-localpart> membership.
-  // This is independent of the Rules/* control folders and preserves Inbox/Junk.
-  const after = new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString();
-  const recentIds = await client.recentEmailIds(after);
-  const unlabeled = recentIds.filter((id) => !account.labeled[id]);
-  for (const email of await client.emails(unlabeled)) {
-    try {
+  // Autosorted is a durable label, not a move destination. Track every JMAP
+  // Email change so IMAP clients cannot permanently remove that membership
+  // when archiving or moving a message. The first v2 pass reconciles all mail.
+  const labelWork = await destinationLabelWork(account, client);
+  const destinationMailboxes = new Map((await client.mailboxes())
+    .filter((mailbox) => mailbox.parentId === folders.autosorted)
+    .map((mailbox) => [mailbox.name, mailbox]));
+  const labelSummary = { checked: 0, repaired: 0, skippedOutgoing: 0, noDestination: 0 };
+  const maximum = client.session.capabilities?.[CORE_CAP]?.maxObjectsInGet || 256;
+  for (let offset = 0; offset < labelWork.ids.length; offset += maximum) {
+    for (const email of await client.emails(labelWork.ids.slice(offset, offset + maximum))) {
+      labelSummary.checked += 1;
       const addresses = extractLabelDestinations(email, CONFIG.routes[target] || []);
-      if (!addresses.length) throw new Error("No managed destination address found");
+      if (!addresses.length && onlyInMailboxes(email, folders.outgoing)) {
+        labelSummary.skippedOutgoing += 1;
+        continue;
+      }
+      if (!addresses.length) {
+        labelSummary.noDestination += 1;
+        continue;
+      }
       const labels = [];
       for (const address of addresses) {
-        const mailboxId = await client.ensureMailbox(folderNameFor(address), folders.autosorted);
-        await client.addMailboxMembership(email, mailboxId);
-        labels.push(folderNameFor(address));
+        const name = folderNameFor(address);
+        let mailbox = destinationMailboxes.get(name);
+        if (!mailbox || !mailbox.isSubscribed) {
+          const id = await client.ensureMailbox(name, folders.autosorted);
+          mailbox = { id, name, parentId: folders.autosorted, isSubscribed: true };
+          destinationMailboxes.set(name, mailbox);
+        }
+        if (await client.addMailboxMembership(email, mailbox.id)) labels.push(name);
       }
-      account.labeled[email.id] = { addresses, labeledAt: new Date().toISOString() };
-      log("info", "Applied destination label", { target, emailId: email.id, labels });
-    } catch (error) {
-      account.labeled[email.id] = { error: error.message, labeledAt: new Date().toISOString() };
-      log("error", "Unable to apply destination label", { target, emailId: email.id, error: error.message });
+      if (labels.length) {
+        labelSummary.repaired += 1;
+        account.labeled[email.id] = { addresses, labeledAt: new Date().toISOString() };
+        log("info", "Restored destination label", { target, emailId: email.id, labels });
+      }
     }
-    saveState(state);
   }
+  account.destinationLabelVersion = DESTINATION_LABEL_VERSION;
+  account.emailState = labelWork.newState;
+  if (labelSummary.checked || labelWork.full) {
+    log("info", "Destination label reconciliation complete", {
+      target, fullReconciliation: labelWork.full, ...labelSummary,
+    });
+  }
+  saveState(state);
 
   const presentSelectorIds = new Set();
   for (const [control, mode] of Object.entries(CONTROL_MODES)) {
@@ -994,12 +1091,14 @@ module.exports = {
   JmapClient,
   accountState,
   cleanEmptyMailboxes,
+  destinationLabelWork,
   emptyLeafMailboxes,
   extractDestination,
   extractLabelDestinations,
   folderNameFor,
   loadState,
   mergeManagedBlock,
+  onlyInMailboxes,
   parseAddresses,
   parseReceivedFor,
   renderManagedBlock,

@@ -37,6 +37,14 @@ needs. Its generated Sieve block is delimited by managed comments. It is the
 single active Sieve script for each managed account and refuses to replace an
 unexpected active script.
 
+Every incoming message also keeps an `Autosorted/<destination-localpart>`
+mailbox membership independently of Inbox, Archive, Junk, `Rules/*`, and
+`Type/*`. The watcher follows native JMAP `Email/changes`; if an IMAP client
+implements Archive or Move by replacing mailbox membership, the watcher adds
+the destination label back without changing read state or any other mailbox.
+The first run after enabling this invariant performs one complete reconciliation
+of existing mail, then processes only changed messages.
+
 Empty custom leaf mailboxes are removed through Stalwart's native
 `Mailbox/changes`, polled hourly to avoid racing active IMAP COPY/MOVE
 operations. The cleaner keeps a complete

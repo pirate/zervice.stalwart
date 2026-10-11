@@ -13,6 +13,8 @@ service used for IMAP-client-driven `Rules/*` selector folders.
   Bulwark. The rendered configuration is not tracked.
 - `data/maintenance/renew-certificate.sh` renews and installs TLS certificates.
 - `rules-watcher/` contains the JMAP/Sieve control-folder automation.
+- `MailLabels/` contains the native macOS menu-bar companion for additive
+  mailbox labels and Mail.app selection actions.
 - `send-mail-tester.py` sends an authenticated SMTP delivery probe using a
   password supplied through the `PASS` environment variable.
 
