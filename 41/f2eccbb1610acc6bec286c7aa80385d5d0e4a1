@@ -1,0 +1,19 @@
+MailLabels/Sources/MailLabels/MailToolbarController.swift
+  s_1500b5feb2b99e::t_42d1b020310408 91-94,106,113-115,117
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "41f2eccbb1610acc6bec286c7aa80385d5d0e4a1",
+  "prompts": {},
+  "sessions": {
+    "s_1500b5feb2b99e": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0373b-a39e-7880-98cf-7ad8eeec6f73",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "pirate <511499+pirate@users.noreply.github.com>"
+    }
+  }
+}
