@@ -1,0 +1,28 @@
+MailLabels/Sources/MailLabels/MailLabelsApp.swift
+  s_1500b5feb2b99e::t_3efce3d1abd82d 15-16
+  s_1500b5feb2b99e::t_526a811ab17c9a 8,17
+  s_1500b5feb2b99e::t_2b346e6cce1f6d 12,14
+MailLabels/Resources/Info.plist
+  s_1500b5feb2b99e::t_8278e8776e01ff 18,20
+MailLabels/Sources/MailLabels/MailToolbarController.swift
+  s_1500b5feb2b99e::t_3efce3d1abd82d 106-111
+  s_1500b5feb2b99e::t_526a811ab17c9a 1-105,112-122
+MailLabels/README.md
+  s_1500b5feb2b99e::t_8278e8776e01ff 3-6,19-21,25-30
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "e2356b1d11e5eb4ce774c6c63b21959df3ef6daa",
+  "prompts": {},
+  "sessions": {
+    "s_1500b5feb2b99e": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0373b-a39e-7880-98cf-7ad8eeec6f73",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "pirate <511499+pirate@users.noreply.github.com>"
+    }
+  }
+}
