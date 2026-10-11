@@ -88,7 +88,10 @@ final class MailToolbarController: NSObject {
         let appKitTop = mainScreenTop - windowBounds.minY
         let topLeft = NSPoint(
             x: windowBounds.maxX - panel.frame.width - 12,
-            y: appKitTop - 7
+            // Mail owns the entire title/toolbar row, including the search
+            // field at its trailing edge. Keep our control in a separate row
+            // immediately below it so it never obscures a native control.
+            y: appKitTop - 54
         )
         panel.setFrameTopLeftPoint(topLeft)
         panel.orderFrontRegardless()
@@ -100,17 +103,18 @@ final class MailToolbarController: NSObject {
             kCGNullWindowID
         ) as? [[String: Any]] else { return nil }
 
-        for window in windows {
+        return windows.compactMap { window -> CGRect? in
             guard (window[kCGWindowOwnerPID as String] as? pid_t) == processID,
                   (window[kCGWindowLayer as String] as? Int) == 0,
                   let bounds = window[kCGWindowBounds as String] as? [String: Any],
                   let x = (bounds["X"] as? NSNumber)?.doubleValue,
                   let y = (bounds["Y"] as? NSNumber)?.doubleValue,
                   let width = (bounds["Width"] as? NSNumber)?.doubleValue,
-                  let height = (bounds["Height"] as? NSNumber)?.doubleValue else { continue }
+                  let height = (bounds["Height"] as? NSNumber)?.doubleValue,
+                  width > 700,
+                  height > 400 else { return nil }
             return CGRect(x: x, y: y, width: width, height: height)
-        }
-        return nil
+        }.max { $0.width * $0.height < $1.width * $1.height }
     }
 }
 
