@@ -1,8 +1,9 @@
 # Stalwart Mail Labels for Mail.app
 
-This macOS menu-bar companion gives Apple Mail a label-first control surface for
-the Stalwart setup in this repository. Select one or more messages in Mail, then
-use the tag icon in the menu bar to:
+This macOS companion gives Apple Mail a label-first control surface for the
+Stalwart setup in this repository. While Mail is frontmost, the **Stalwart
+Labels** control is attached to the right side of the main inbox toolbar. Select
+one or more messages, then use it to:
 
 - archive while preserving every other mailbox membership;
 - add the message to `Rules/AutoUnread`, `Rules/AutoRead`, `Rules/Ham`,
@@ -15,14 +16,18 @@ identity through Mail's public AppleScript dictionary. It performs mailbox
 updates directly through standard JMAP. Account passwords are stored in macOS
 Keychain, not preferences or the repository.
 
-## Why this is not a MailKit action extension
+The menu-bar tag remains available as a fallback and exposes the same actions.
+
+## Why the inbox control is a companion panel
 
 MailKit action handlers run when Mail downloads a message and may only mark it
 read or unread, flag it, set its color, or move it to Archive, Junk, or Trash.
-MailKit does not expose the user's later Archive/Move command, arbitrary
-mailbox membership, the current message selection, or a custom message-viewer
-UI. A MailKit target therefore cannot implement Gmail-style labels or repair
-Mail's destructive Archive behavior.
+MailKit does not expose the user's current inbox selection or arbitrary mailbox
+membership. A generic macOS Action extension can appear in Mail's toolbar
+customizer, but Mail does not pass selected message rows to it, so that toolbar
+item remains disabled. The functional inbox control is therefore a small native,
+out-of-process panel aligned with Mail's toolbar; it does not inject code into
+Mail or depend on private Mail plug-in APIs.
 
 The durable fix is split at the correct boundaries:
 

@@ -5,11 +5,16 @@ import SwiftUI
 struct MailLabelsApp: App {
     @StateObject private var store: AccountStore
     @StateObject private var controller: LabelController
+    private let toolbarController: MailToolbarController
 
     init() {
         let store = AccountStore()
+        let controller = LabelController(store: store)
         _store = StateObject(wrappedValue: store)
-        _controller = StateObject(wrappedValue: LabelController(store: store))
+        _controller = StateObject(wrappedValue: controller)
+        let toolbarController = MailToolbarController(labelController: controller)
+        self.toolbarController = toolbarController
+        DispatchQueue.main.async { toolbarController.start() }
     }
 
     var body: some Scene {
